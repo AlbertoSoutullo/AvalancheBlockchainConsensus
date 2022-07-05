@@ -38,6 +38,8 @@ import pandas as pd
 from dataclasses import dataclass
 from collections import Counter
 
+from plotting import create_custom_cmaps, create_preference_info_matrix, make_gif
+
 PREFERENCES = ["A", "B", "C"]
 
 
@@ -127,7 +129,7 @@ class SnowballAlgorithm:
             for key, value in votes_count.items():
                 self._register.loc[len(self._register.index)] = [i, key, value]
 
-            self._create_register_for_heatmap()
+            self._create_register_for_heatmap_2()
 
             nodes_left = [node for node in nodes_left if not node.is_decided()]
             i += 1
@@ -146,8 +148,16 @@ class SnowballAlgorithm:
         matrix_form_data = np.reshape(node_consecutive_successes, (self.n, self.n))
         self._heatmap_register.append(matrix_form_data)
 
-    def _create_register_for_heatmap(self):
-
+    def _create_register_for_heatmap_2(self):
+        sub_matrices = []
+        for preference in PREFERENCES:
+            node_consecutive_successes = [node.consecutive_successes if node.preference == preference
+                                          else -1
+                                          for node in self._nodes]
+            node_consecutive_successes = np.array(node_consecutive_successes)
+            matrix_form_data = np.reshape(node_consecutive_successes, (self.n, self.n))
+            sub_matrices.append(matrix_form_data)
+        self._heatmap_register.append(sub_matrices)
 
     @property
     def n(self):
@@ -167,7 +177,9 @@ class SnowballAlgorithm:
 
 
 if __name__ == '__main__':
-    random.seed(0)
+    random.seed(1)
+
+    cmaps = create_custom_cmaps()
 
     n = 20
     k = 10
@@ -183,9 +195,20 @@ if __name__ == '__main__':
     data = snowball_alg.retrieve_register()
     hm_data = snowball_alg.retrieve_heatmap_register()
 
-    # sns.lineplot(data=data, x="Iteration", y="Num_Votes", hue="Preference")
+    make_gif(frame_folder='images')
 
-    for i in range(n):
-        sns.heatmap(hm_data[i], vmin=0, vmax=beta)
-        plt.show()
+    for iteration in range(len(hm_data)):
+        f, ax = plt.subplots()
+        for preference in range(len(PREFERENCES)):
+            # sns.heatmap(hm_data[iteration][preference], vmin=0, vmax=beta)
+            heatmap_values = hm_data[iteration][preference]
+            annotations = create_preference_info_matrix(heatmap_values, PREFERENCES[preference])
+            sns.heatmap(heatmap_values, cmap=cmaps[preference], annot=annotations, ax=ax, vmin=0, vmax=20, fmt='', cbar=False)
+
+            results_path = f"images/{iteration}.png"
+            # print(results_path)
+            plt.savefig(results_path)
+        #plt.show()
+
+    make_gif(frame_folder='images')
 
