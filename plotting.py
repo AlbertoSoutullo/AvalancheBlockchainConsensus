@@ -97,7 +97,7 @@ def make_gif(frame_folder):
     frames = [Image.open(image, formats=['PNG']) for image in frames]
     frame_one = frames[0]
     frame_one.save(frame_folder+"/result.gif", format="GIF", append_images=frames,
-               save_all=True, duration=500, loop=0)
+               save_all=True, duration=200, loop=0)
 
 
 if __name__ == '__main__':

@@ -120,14 +120,16 @@ class SnowballAlgorithm:
         nodes_left = [node for node in self._nodes if not node.is_decided()]
         i = 0
         while len(list(nodes_left)) != 0:  # add max_iter, refactor len
-            for node in nodes_left:
+            subsample_size = 20 if len(list(nodes_left)) >= 20 else len(list(nodes_left))
+            random_subsample = random.sample(nodes_left, subsample_size)
+            for node in random_subsample:
                 node.update(self._nodes, self.k, self.alpha, self.beta)
 
             # line plot
-            votes = [node.preference for node in self._nodes]
-            votes_count = Counter(votes)
-            for key, value in votes_count.items():
-                self._register.loc[len(self._register.index)] = [i, key, value]
+            # votes = [node.preference for node in self._nodes]
+            # votes_count = Counter(votes)
+            # for key, value in votes_count.items():
+            #     self._register.loc[len(self._register.index)] = [i, key, value]
 
             self._create_register_for_heatmap_2()
 
@@ -194,8 +196,6 @@ if __name__ == '__main__':
 
     data = snowball_alg.retrieve_register()
     hm_data = snowball_alg.retrieve_heatmap_register()
-
-    make_gif(frame_folder='images')
 
     for iteration in range(len(hm_data)):
         f, ax = plt.subplots()
