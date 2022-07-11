@@ -1,214 +1,34 @@
-# The intuition above outlines the Snowball Algorithm, which is a building block of Avalanche consensus.
-
 # Parameters
 # n: number of participants
 # k (sample size): between 1 and n (number of people to ask)
 # α (quorum size): between 1 and k (α or more people give same response, this is adopted as preference)
 # β (decision threshold): >= 1 (repeats this until β times quorum in a row)
 
-# As the quorum size, α, increases, the safety threshold increases, and the liveness threshold decreases.
-# This means the network can tolerate more byzantine (deliberately incorrect, malicious) nodes and remain safe,
-# meaning all nodes will eventually agree whether something is accepted or rejected.
-# The liveness threshold is the number of malicious participants that can be tolerated before the protocol is unable to
-# make progress.
-
-
-# Algorithm
-# preference := pizza
-# consecutiveSuccesses := 0
-# while not decided:
-#   ask k random people their preference
-#   if >= α give the same response:
-#     preference := response with >= α
-#     if preference == old preference:
-#       consecutiveSuccesses++
-#     else:
-#       consecutiveSuccesses = 1
-#   else:
-#     consecutiveSuccesses = 0
-#   if consecutiveSuccesses > β:
-#     decide(preference)
+# Python Imports
+import json
 import random
 
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-import pandas as pd
-
-from dataclasses import dataclass
-from collections import Counter
-
-from plotting import create_custom_cmaps, create_preference_info_matrix, make_gif
-
-PREFERENCES = ["A", "B", "C"]
-
-
-class Node:
-    def __init__(self, vote, node_id):
-        self._preference = vote
-        self._id = node_id
-        self._consecutive_successes = 0
-        self._decided = False
-
-    def __eq__(self, other):
-        return self._id == other.id
-
-    def update(self, all_nodes, k, alpha, beta):
-        all_nodes_but_itself = [node for node in all_nodes if node != self]
-        random_nodes = random.sample(all_nodes_but_itself, k)
-
-        preference, nodes_agreed = self._check_for_nodes_preference(random_nodes, alpha)
-        if nodes_agreed:
-            self._update_preference_and_successes(preference)
-        else:
-            self._consecutive_successes = 0
-        if self._consecutive_successes > beta:
-            self._decided = True
-
-    def _check_for_nodes_preference(self, random_nodes, alpha):
-        random_votes = [node.preference for node in random_nodes]
-        count_preferences = Counter(random_votes)
-        ordered_preferences = count_preferences.most_common(1)
-
-        if ordered_preferences[0][1] >= alpha:
-            return ordered_preferences[0][0], True
-
-        return None, False
-
-    def _update_preference_and_successes(self, preference):
-        if self._preference == preference:
-            self._consecutive_successes += 1
-        else:
-            self._consecutive_successes = 1
-            self._preference = preference
-
-    def is_decided(self):
-        return self._decided
-
-    @property
-    def id(self):
-        return self._id
-
-    @property
-    def preference(self):
-        return self._preference
-
-    @property
-    def consecutive_successes(self):
-        return self._consecutive_successes
-
-
-@dataclass
-class SnowballConfiguration:
-    n: int
-    k: int
-    alpha: int
-    beta: int
-
-
-class SnowballAlgorithm:
-    def __init__(self, config):
-        self._snowball_configuration = config
-        self._nodes = None
-        self._register = pd.DataFrame(columns=["Iteration", "Preference", "Num_Votes"])
-        self._heatmap_register = []
-
-    def initialize_nodes(self):
-        self._nodes = [Node(random.choice(PREFERENCES), i) for i in range(self.n * self.n)]
-
-    def simulate(self):
-        nodes_left = [node for node in self._nodes if not node.is_decided()]
-        i = 0
-        while len(list(nodes_left)) != 0:  # add max_iter, refactor len
-            subsample_size = 20 if len(list(nodes_left)) >= 20 else len(list(nodes_left))
-            random_subsample = random.sample(nodes_left, subsample_size)
-            for node in random_subsample:
-                node.update(self._nodes, self.k, self.alpha, self.beta)
-
-            # line plot
-            # votes = [node.preference for node in self._nodes]
-            # votes_count = Counter(votes)
-            # for key, value in votes_count.items():
-            #     self._register.loc[len(self._register.index)] = [i, key, value]
-
-            self._create_register_for_heatmap_2()
-
-            nodes_left = [node for node in nodes_left if not node.is_decided()]
-            i += 1
-
-        print(f"Iteration {i}")
-
-    def retrieve_register(self):
-        return self._register
-
-    def retrieve_heatmap_register(self):
-        return self._heatmap_register
-
-    def _create_register_for_heatmap(self):
-        node_consecutive_successes = [node.consecutive_successes for node in self._nodes]
-        node_consecutive_successes = np.array(node_consecutive_successes)
-        matrix_form_data = np.reshape(node_consecutive_successes, (self.n, self.n))
-        self._heatmap_register.append(matrix_form_data)
-
-    def _create_register_for_heatmap_2(self):
-        sub_matrices = []
-        for preference in PREFERENCES:
-            node_consecutive_successes = [node.consecutive_successes if node.preference == preference
-                                          else -1
-                                          for node in self._nodes]
-            node_consecutive_successes = np.array(node_consecutive_successes)
-            matrix_form_data = np.reshape(node_consecutive_successes, (self.n, self.n))
-            sub_matrices.append(matrix_form_data)
-        self._heatmap_register.append(sub_matrices)
-
-    @property
-    def n(self):
-        return self._snowball_configuration.n
-
-    @property
-    def k(self):
-        return self._snowball_configuration.k
-
-    @property
-    def alpha(self):
-        return self._snowball_configuration.alpha
-
-    @property
-    def beta(self):
-        return self._snowball_configuration.beta
-
+# Project Imports
+from Snowball.snowball import SnowballAlgorithm
+from Snowball.snowball_configuration import SnowballConfiguration
+from plotting import create_custom_cmaps, make_gif, prepare_figures
 
 if __name__ == '__main__':
     random.seed(1)
 
-    cmaps = create_custom_cmaps()
+    with open('parameters.json') as parameters_file:
+        parameters = json.load(parameters_file)
 
-    n = 20
-    k = 10
-    alpha = 6
-    beta = 20
+    cmaps = create_custom_cmaps(len(parameters['PREFERENCES']))
 
-    snowball_configuration = SnowballConfiguration(n, k, alpha, beta)
-    snowball_alg = SnowballAlgorithm(snowball_configuration)
+    snowball_configuration = SnowballConfiguration(parameters['n'], parameters['k'], parameters['alpha'],
+                                                   parameters['beta'])
+    snowball_alg = SnowballAlgorithm(snowball_configuration, parameters['PREFERENCES'])
 
     snowball_alg.initialize_nodes()
     snowball_alg.simulate()
-
-    data = snowball_alg.retrieve_register()
     hm_data = snowball_alg.retrieve_heatmap_register()
 
-    for iteration in range(len(hm_data)):
-        f, ax = plt.subplots()
-        for preference in range(len(PREFERENCES)):
-            # sns.heatmap(hm_data[iteration][preference], vmin=0, vmax=beta)
-            heatmap_values = hm_data[iteration][preference]
-            annotations = create_preference_info_matrix(heatmap_values, PREFERENCES[preference])
-            sns.heatmap(heatmap_values, cmap=cmaps[preference], annot=annotations, ax=ax, vmin=0, vmax=20, fmt='', cbar=False)
-
-            results_path = f"images/{iteration}.png"
-            # print(results_path)
-            plt.savefig(results_path)
-        #plt.show()
+    prepare_figures(hm_data, parameters['PREFERENCES'], cmaps, parameters['output_path'])
 
     make_gif(frame_folder='images')
-
